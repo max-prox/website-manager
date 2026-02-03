@@ -3,7 +3,7 @@ from datetime import datetime
 import os
 
 app = Flask(__name__)
-app.secret_key = "supersecretkey"  # required for session
+app.secret_key = "supersecretkey"
 
 messages = []
 
@@ -12,11 +12,6 @@ HTML = """
 <html>
 <head>
     <title>Mini Chat</title>
-    <style>
-        body { font-family: Arial; }
-        .msg { margin: 5px 0; }
-        .time { color: gray; font-size: 12px; }
-    </style>
 </head>
 <body>
 
@@ -27,14 +22,10 @@ HTML = """
         <button type="submit">Join Chat</button>
     </form>
 {% else %}
-    <h2>Welcome {{ name }} 👋</h2>
-    <h3>Chat 💬</h3>
+    <h2>Welcome {{ name }}</h2>
 
     {% for m in messages %}
-        <div class="msg">
-            <b>{{ m.name }}</b>: {{ m.text }}
-            <span class="time">[{{ m.time }}]</span>
-        </div>
+        <p><b>{{ m.name }}</b>: {{ m.text }} <small>[{{ m.time }}]</small></p>
     {% endfor %}
 
     <form method="POST">
@@ -51,16 +42,20 @@ HTML = """
 def chat():
     if "name" not in session:
         if request.method == "POST":
-            session["name"] = request.form["username"]
-            return redirect("/")
+            username = request.form.get("username")
+            if username:
+                session["name"] = username
+                return redirect("/")
         return render_template_string(HTML, name=None, messages=messages)
 
-    if request.method == "POST" and "msg" in request.form:
-        messages.append({
-            "name": session["name"],
-            "text": request.form["msg"],
-            "time": datetime.now().strftime("%H:%M:%S")
-        })
+    if request.method == "POST":
+        msg = request.form.get("msg")
+        if msg:
+            messages.append({
+                "name": session["name"],
+                "text": msg,
+                "time": datetime.now().strftime("%H:%M:%S")
+            })
 
     return render_template_string(
         HTML,
