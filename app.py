@@ -111,7 +111,7 @@ setInterval(fetchMessages, 1500);
 </html>
 """
 
-GIPHY_API_KEY = "YOUR_GIPHY_API_KEY_HERE"
+GIPHY_API_KEY = "T3pDFULRBq9mwUMHm29ePrtTteNeeP8M"
 
 @app.route("/", methods=["GET", "POST"])
 def chat():
