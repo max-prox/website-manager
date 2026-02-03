@@ -1,18 +1,22 @@
-from flask import Flask, render_template_string, request, session, redirect, jsonify
+from flask import Flask, render_template_string, session, request, redirect
+from flask_socketio import SocketIO, emit
 from datetime import datetime
 import os
 import requests
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
+socketio = SocketIO(app)
 
 messages = []
+
+GIPHY_API_KEY = "T3pDFULRBq9mwUMHm29ePrtTteNeeP8M"
 
 HTML = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mini Chat 💬</title>
+    <title>Real-Time Chat 💬</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
@@ -43,15 +47,9 @@ HTML = """
     </form>
 {% else %}
     <h2>Welcome {{ name }} 😎</h2>
-    <div id="chat-box">
-        {% for m in messages %}
-            <div class="msg {% if m.name==name %}user{% else %}other{% endif %}">
-                <b>{{ m.name }}</b>: {{ m.text|safe }} <span class="time">[{{ m.time }}]</span>
-            </div>
-        {% endfor %}
-    </div>
-    <form method="POST" id="chatForm" style="display:flex; align-items:center;">
-        <input id="msgInput" name="msg" placeholder="Type a message..." required>
+    <div id="chat-box"></div>
+    <form id="chatForm" style="display:flex; align-items:center;" onsubmit="return sendMsg();">
+        <input id="msgInput" placeholder="Type a message..." required>
         <div id="emoji-button"><i class="fa-regular fa-face-smile"></i></div>
         <div id="gif-button"><i class="fa-solid fa-photo-film"></i></div>
         <button type="submit">Send</button>
@@ -59,51 +57,63 @@ HTML = """
     <div id="emoji-picker"></div>
     <div id="gif-picker"></div>
 
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4.6.2/dist/index.js"></script>
 <script>
-const picker = new EmojiButton({ position: 'top-start' });
-const emojiButton = document.querySelector('#emoji-button');
+const socket = io();
 const msgInput = document.getElementById("msgInput");
-emojiButton.addEventListener('click', () => { picker.togglePicker(emojiButton); });
+const chatBox = document.getElementById("chat-box");
+
+// Load old messages
+const messages = {{ messages|tojson }};
+messages.forEach(m => addMessage(m));
+
+// Send message
+function sendMsg(){
+    const msg = msgInput.value;
+    if(msg.trim()==="") return false;
+    socket.emit("send_message", {name:"{{ name }}", text:msg, time:new Date().toLocaleTimeString()});
+    msgInput.value = "";
+    return false;
+}
+
+// Receive messages
+socket.on("receive_message", function(m){
+    addMessage(m);
+});
+
+function addMessage(m){
+    const div = document.createElement("div");
+    div.className = "msg " + (m.name==="{{ name }}" ? "user" : "other");
+    div.innerHTML = `<b>${m.name}</b>: ${m.text} <span class="time">[${m.time}]</span>`;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// Emoji picker
+const picker = new EmojiButton({ position: 'top-start' });
+document.querySelector('#emoji-button').addEventListener('click', () => { picker.togglePicker(document.querySelector('#emoji-button')); });
 picker.on('emoji', emoji => { msgInput.value += emoji; });
 
-// GIF search
+// GIF picker
 const gifButton = document.getElementById("gif-button");
 const gifPicker = document.getElementById("gif-picker");
 gifButton.addEventListener('click', () => { 
-    gifPicker.style.display = gifPicker.style.display === 'block' ? 'none' : 'block';
-    fetchGifs('funny'); // initial gifs
+    gifPicker.style.display = gifPicker.style.display==='block'?'none':'block';
+    fetchGifs('funny');
 });
 
 async function fetchGifs(query){
     gifPicker.innerHTML = '';
     const res = await fetch(`/gifs?q=${query}`);
     const data = await res.json();
-    data.forEach(url => {
+    data.forEach(url=>{
         const img = document.createElement('img');
         img.src = url;
-        img.onclick = () => { msgInput.value += `<img src='${url}' width='80'>`; gifPicker.style.display='none'; };
+        img.onclick = ()=>{ msgInput.value += `<img src='${url}' width='80'>`; gifPicker.style.display='none'; };
         gifPicker.appendChild(img);
     });
 }
-
-// Auto fetch messages
-function fetchMessages() {
-    fetch("/messages")
-        .then(res => res.json())
-        .then(data => {
-            let chatBox = document.getElementById("chat-box");
-            chatBox.innerHTML = "";
-            data.forEach(m => {
-                let msgDiv = document.createElement("div");
-                msgDiv.className = "msg " + (m.name === "{{ name }}" ? "user" : "other");
-                msgDiv.innerHTML = `<b>${m.name}</b>: ${m.text} <span class="time">[${m.time}]</span>`;
-                chatBox.appendChild(msgDiv);
-            });
-            chatBox.scrollTop = chatBox.scrollHeight;
-        });
-}
-setInterval(fetchMessages, 1500);
 </script>
 {% endif %}
 </div>
@@ -111,40 +121,28 @@ setInterval(fetchMessages, 1500);
 </html>
 """
 
-GIPHY_API_KEY = "T3pDFULRBq9mwUMHm29ePrtTteNeeP8M"
-
 @app.route("/", methods=["GET", "POST"])
-def chat():
+def index():
     if "name" not in session:
-        if request.method == "POST":
+        if request.method=="POST":
             username = request.form.get("username")
             if username:
                 session["name"] = username
                 return redirect("/")
         return render_template_string(HTML, name=None, messages=messages)
-
-    if request.method == "POST":
-        msg = request.form.get("msg")
-        if msg:
-            messages.append({
-                "name": session["name"],
-                "text": msg,
-                "time": datetime.now().strftime("%H:%M:%S")
-            })
-        return redirect("/")
-
     return render_template_string(HTML, name=session["name"], messages=messages)
-
-@app.route("/messages")
-def get_messages():
-    return jsonify(messages)
 
 @app.route("/gifs")
 def get_gifs():
     q = request.args.get("q", "funny")
     url = f"https://api.giphy.com/v1/gifs/search?api_key={GIPHY_API_KEY}&q={q}&limit=10&rating=g"
     res = requests.get(url).json()
-    return jsonify([item["images"]["downsized"]["url"] for item in res["data"]])
+    return [item["images"]["downsized"]["url"] for item in res["data"]]
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT",5000)))
+@socketio.on("send_message")
+def handle_message(data):
+    messages.append(data)
+    socketio.emit("receive_message", data, broadcast=True)
+
+if __name__=="__main__":
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT",5000)))
