@@ -183,4 +183,4 @@ def handle_reset(data):
     emit("update_board", {"board":game["board"],"turn":game["turn"],"gameOver":game["gameOver"],"status":"Player X's turn"}, room=request.sid, broadcast=True)
 
 if __name__=="__main__":
-    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT",5000)))
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT",5000)), allow_unsafe_werkzeug=True)
