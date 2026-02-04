@@ -1,4 +1,5 @@
-from flask import Flask, render_template_string, os
+from flask import Flask, render_template_string
+import os
 
 app = Flask(__name__)
 
@@ -65,13 +66,10 @@ function makeMove(row,col){
 }
 
 function checkWin(player){
-    // Rows
     for(let i=0;i<3;i++)
         if(board[i][0]===player && board[i][1]===player && board[i][2]===player) return true;
-    // Columns
     for(let i=0;i<3;i++)
         if(board[0][i]===player && board[1][i]===player && board[2][i]===player) return true;
-    // Diagonals
     if(board[0][0]===player && board[1][1]===player && board[2][2]===player) return true;
     if(board[0][2]===player && board[1][1]===player && board[2][0]===player) return true;
     return false;
@@ -102,4 +100,4 @@ def index():
     return render_template_string(HTML)
 
 if __name__=="__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT",5000)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
