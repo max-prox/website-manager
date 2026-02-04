@@ -77,7 +77,7 @@ input,button{
     <button onclick="joinRoom()">Join Room</button>
 </div>
 
-<h3 id="status" style="text-align:center;"></h3>
+<h3 id="status" style="text-align:center; pointer-events:none;"></h3>
 
 <div class="container" id="gameArea" style="display:none;">
     <div class="game">
